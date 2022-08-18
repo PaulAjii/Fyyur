@@ -189,7 +189,7 @@ class ArtistForm(Form):
             ('WY', 'WY'),
         ]
     )
-    phone = StringField( 
+    phone = PhoneNumberField( 
         'phone', validators=[DataRequired(), Length(min=10, max=14)]
     )
     image_link = StringField(
