@@ -10,11 +10,10 @@ from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
-from flask_wtf import Form
+from flask_wtf import FlaskForm
 from forms import *
 from flask_migrate import Migrate
 import sys
-#from model import Venue, Shows, Artist
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -137,8 +136,11 @@ def show_venue(venue_id):
     if not venue:
         abort(404)
 
-    past_shows = []
     past_shows_res = db.session.query(Shows).join(Artist).filter(Shows.venue_id == venue_id).filter(Shows.start_time < datetime.now()).all()
+    past_shows = []
+
+    upcoming_shows_res = db.session.query(Shows).join(Artist).filter(Shows.venue_id == venue_id).filter(Shows.start_time > datetime.now()).all()
+    upcoming_shows = []
 
     for show in past_shows_res:
         past_shows.append({
@@ -147,8 +149,6 @@ def show_venue(venue_id):
             'artist_image_link': show.artist.image_link,
             'start_time': show.start_time.strftime('%Y-%m-%d %H:%M:%S')
             })
-    upcoming_shows = []
-    upcoming_shows_res = db.session.query(Shows).join(Artist).filter(Shows.venue_id == venue_id).filter(Shows.start_time > datetime.now()).all()
 
     for show in upcoming_shows_res:
         upcoming_shows.append({
@@ -189,8 +189,7 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
-    #form = VenueForm()
-    error = False
+    form = VenueForm()
     try:
         venue = Venue(
             name = request.form['name'],
@@ -204,21 +203,17 @@ def create_venue_submission():
             website_link = request.form['website_link'],
             seeking_talent = True if 'seeking_talent' in request.form else False,
             seeking_description = request.form['seeking_description']
-            )
+                )
         db.session.add(venue)
         db.session.commit()
-
-    except:
-        error = True
+        flash('Venue ' + request.form['name'] + ' was successfully listed!')
+    except Exception as e:
+        print(e)
+        flash('Venue ' + request.form['name'] + ' cannot be listed!')
         db.session.rollback()
         print(sys.exc_info())
     finally:
         db.session.close()
-
-    if not error:
-        flash('Venue ' + request.form['name'] + ' was successfully listed!')
-    else:
-        flash('An error occurred. Venue ' + request.form['name'] + ' could not be listed.')
     return render_template('pages/home.html')
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
@@ -281,10 +276,13 @@ def show_artist(artist_id):
     if not artist:
         abort(404)
 
+    past_shows_query = db.session.query(Shows).join(Venue).filter(Shows.artist_id == artist_id).filter(Shows.start_time < datetime.now()).all()
     past_shows = []
-    past_shows_res = db.session.query(Shows).join(Venue).filter(Shows.artist_id == artist_id).filter(Shows.start_time < datetime.now()).all()
 
-    for show in past_shows_res:
+    upcoming_shows_query = db.session.query(Shows).join(Venue).filter(Shows.artist_id == artist_id).filter(Shows.start_time > datetime.now()).all()
+    upcoming_shows = []
+
+    for show in past_shows_query:
         past_shows.append({
             'venue_id': show.venue_id,
             'venue_name': show.venue.name,
@@ -292,10 +290,7 @@ def show_artist(artist_id):
             'start_time': show.start_time.strftime('%Y-%m-%d %H:%M:%S')
             })
 
-    upcoming_shows = []
-    upcoming_shows_res = db.session.query(Shows).join(Venue).filter(Shows.artist_id == artist_id).filter(Shows.start_time > datetime.now()).all()
-
-    for show in upcoming_shows_res:
+    for show in upcoming_shows_query:
         upcoming_shows.append({
             'venue_id': show.venue_id,
             'venue_name': show.venue.name,
@@ -441,8 +436,6 @@ def create_artist_form():
 @app.route('/artists/create', methods=['POST'])
 def create_artist_submission():
     form = ArtistForm()
-    error = False
-    
     try:
         artist = Artist(
         name = request.form['name'],
@@ -456,22 +449,16 @@ def create_artist_submission():
         seeking_venue = True if 'seeking_venue' in request.form else False,
         seeking_description = request.form['seeking_description']
         )
-
         db.session.add(artist)
         db.session.commit()
+        flash('Artist ' + request.form['name'] + ' was successfully listed!')
     except:
-        error = True
         db.session.rollback()
-        print(sys.exc_info())
+        flash('Artist ' + request.form['name'] + ' could not be listed!')
+        abort(500)
     finally:
         db.session.close()
-    if not error:
-        flash('Artist ' + request.form['name'] + ' was successfully listed!')
-    else:
-        flash('An error occurred. Artist ' + request.form['name'] + ' could not be listed.')
-        #abort(500)
     return render_template('pages/home.html')
-
 
 #  Shows
 #  ----------------------------------------------------------------
@@ -501,8 +488,6 @@ def create_shows():
 
 @app.route('/shows/create', methods=['POST'])
 def create_show_submission():
-    error = False
-
     try:
         show = Shows(
                 artist_id = request.form['artist_id'],
@@ -511,21 +496,13 @@ def create_show_submission():
                 )
         db.session.add(show)
         db.session.commit()
-
+        flash('Show is successfully listed!')
     except:
-        error = True
         db.session.rollback()
-        print(sys.exc_info())
-
+        flash('An error occurred. Show can not be listed!')
+        abort(500)
     finally:
         db.session.close()
-
-    if error:
-        flash('An error occurred. Show could not be listed!')
-        abort(500)
-    else:
-        flash('Show was successfully listed!')
-
     return render_template('pages/home.html')
 
 @app.errorhandler(404)
